@@ -1,9 +1,14 @@
 <template>
-  <div class="condition-node" :class="{ selected: isSelected }">
-    <Handle type="target" :position="Position.Top" :style="{ background: '#4d53e8' }" />
-    <Handle type="source" :position="Position.Bottom" :style="{ background: '#4d53e8' }" />
+  <div class="big-scene-node" :class="{ selected: isSelected }">
+    <Handle type="target" :position="Position.Left" :style="{ background: '#4d53e8' }" />
+    <Handle type="source" :position="Position.Right" :style="{ background: '#4d53e8' }" />
+    
     <div class="node-content">
-      <div class="node-title">{{ data.title || 'Condition' }}</div>
+      <div class="node-icon">🎬</div>
+      <div class="node-title">{{ data.title || '大场景' }}</div>
+      <div v-if="data.subScenes && data.subScenes.length > 0" class="sub-scenes-badge">
+        {{ data.subScenes.length }} 个小场景
+      </div>
     </div>
     <button
       v-if="showAddButton"
@@ -40,7 +45,7 @@ const isSelected = computed(() => {
 // 检查是否有后续节点
 const showAddButton = computed(() => {
   const outgoingEdges = getEdges.value.filter(edge => edge.source === props.id)
-  return outgoingEdges.length === 0
+  return outgoingEdges.length === 0 && isSelected.value
 })
 
 const handleAddClick = (event: MouseEvent) => {
@@ -49,39 +54,46 @@ const handleAddClick = (event: MouseEvent) => {
 </script>
 
 <style scoped>
-.condition-node {
+.big-scene-node {
   position: relative;
-  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
   border: 2px solid #4d53e8;
   border-radius: 12px;
   padding: 16px 20px;
-  min-width: 140px;
-  min-height: 60px;
+  min-width: 160px;
+  min-height: 80px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-  box-shadow: 0 2px 4px rgba(77, 83, 232, 0.1);
+  box-shadow: 0 2px 8px rgba(77, 83, 232, 0.12);
   transition: all 0.2s ease;
+  cursor: pointer;
 }
 
-.condition-node:hover {
-  box-shadow: 0 4px 12px rgba(77, 83, 232, 0.15);
-  transform: translateY(-1px);
+.big-scene-node:hover {
+  box-shadow: 0 4px 16px rgba(77, 83, 232, 0.18);
+  transform: translateY(-2px);
 }
 
-.condition-node.selected {
+.big-scene-node.selected {
   border-color: #37d0ff;
-  box-shadow: 0 0 0 3px rgba(55, 208, 255, 0.2), 0 4px 12px rgba(77, 83, 232, 0.2);
-  background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
+  box-shadow: 0 0 0 3px rgba(55, 208, 255, 0.2), 0 4px 16px rgba(77, 83, 232, 0.2);
+  background: linear-gradient(135deg, #ffffff 0%, #e0f2fe 100%);
 }
 
 .node-content {
   width: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 8px;
+}
+
+.node-icon {
+  font-size: 24px;
+  line-height: 1;
 }
 
 .node-title {
@@ -90,6 +102,15 @@ const handleAddClick = (event: MouseEvent) => {
   color: #1f2937;
   text-align: center;
   line-height: 1.4;
+}
+
+.sub-scenes-badge {
+  font-size: 11px;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
 }
 
 .add-node-button {

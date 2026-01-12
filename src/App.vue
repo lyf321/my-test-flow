@@ -1,7 +1,7 @@
 <template>
   <div class="app-container">
     <div class="header">
-      <h1>工作流编辑器对比</h1>
+      <h1>工作流编辑器</h1>
       <div class="tabs">
         <button
           :class="['tab', { active: activeTab === 'x6' }]"
@@ -29,7 +29,7 @@ import { ref } from 'vue'
 import X6Editor from './components/x6/WorkflowEditor.vue'
 import VueFlowEditor from './components/vueflow/WorkflowEditor.vue'
 
-const activeTab = ref<'x6' | 'vueflow'>('x6')
+const activeTab = ref<'x6' | 'vueflow'>('vueflow')
 </script>
 
 <style scoped>

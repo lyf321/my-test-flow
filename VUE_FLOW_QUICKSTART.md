@@ -153,44 +153,8 @@ const onNodeClick = (event: NodeMouseEvent) => {
 ```
 
 #### 步骤 3：节点加号按钮
-```vue
-<!-- 在节点组件中添加 -->
-<template>
-  <div class="custom-node">
-    <!-- 节点内容 -->
-    <div class="node-content">...</div>
-    
-    <!-- 加号按钮（当没有后续节点时显示） -->
-    <button 
-      v-if="showAddButton"
-      class="add-node-button"
-      @click="showNodeSelector"
-    >
-      +
-    </button>
-  </div>
-</template>
-```
 
 #### 步骤 4：节点选择器
-```vue
-<!-- NodeSelector.vue -->
-<template>
-  <div v-if="visible" class="node-selector">
-    <div class="selector-list">
-      <div 
-        v-for="nodeType in nodeTypes"
-        :key="nodeType.id"
-        class="selector-item"
-        @click="selectNode(nodeType)"
-      >
-        <span class="icon">{{ nodeType.icon }}</span>
-        <span class="label">{{ nodeType.label }}</span>
-      </div>
-    </div>
-  </div>
-</template>
-```
 
 ### 2.5 连线加号功能
 
@@ -199,88 +163,8 @@ const onNodeClick = (event: NodeMouseEvent) => {
 **实现步骤**：
 
 #### 步骤 1：连线点击处理
-```typescript
-const selectedEdge = ref<Edge | null>(null)
-const edgeAddButtonVisible = ref(false)
-
-const onEdgeClick = (event: EdgeMouseEvent) => {
-  const edge = event.edge
-  selectedEdge.value = edge
-  
-  // 显示加号按钮
-  edgeAddButtonVisible.value = true
-  
-  // 计算加号按钮位置（连线中点）
-  const sourceNode = getNode.value(edge.source)
-  const targetNode = getNode.value(edge.target)
-  
-  if (sourceNode && targetNode) {
-    const midX = (sourceNode.position.x + targetNode.position.x) / 2
-    const midY = (sourceNode.position.y + targetNode.position.y) / 2
-    addButtonPosition.value = { x: midX, y: midY }
-  }
-}
-```
 
 #### 步骤 2：在连线中间插入节点
-```typescript
-const insertNodeInEdge = (edge: Edge, newNodeType: string) => {
-  // 1. 删除原连线
-  removeEdges([edge.id])
-  
-  // 2. 创建新节点
-  const newNode: Node = {
-    id: `node_${Date.now()}`,
-    type: newNodeType,
-    position: addButtonPosition.value,
-    data: { title: newNodeType },
-  }
-  
-  // 3. 添加新节点
-  addNodes([newNode])
-  
-  // 4. 创建两条新连线
-  addEdges([
-    { id: `edge_${Date.now()}_1`, source: edge.source, target: newNode.id },
-    { id: `edge_${Date.now()}_2`, source: newNode.id, target: edge.target },
-  ])
-}
-```
-
-### 2.6 ✅ 快捷键系统
-
-**功能说明**：支持常用快捷键操作。
-
-**快捷键列表**：
-- `Ctrl/Cmd + Z` - 撤销
-- `Ctrl/Cmd + Shift + Z` - 重做
-- `Ctrl/Cmd + C` - 复制
-- `Ctrl/Cmd + V` - 粘贴
-- `Ctrl/Cmd + A` - 全选
-- `Delete/Backspace` - 删除选中节点
-
-**实现方式**：
-```typescript
-const handleKeyDown = (event: KeyboardEvent) => {
-  if (event.target instanceof HTMLInputElement) return
-  
-  if ((event.ctrlKey || event.metaKey) && event.key === 'z') {
-    event.preventDefault()
-    if (event.shiftKey) {
-      redo()
-    } else {
-      undo()
-    }
-  }
-  
-  if (event.key === 'Delete' || event.key === 'Backspace') {
-    const selectedNodes = getNodes.value.filter(n => n.selected)
-    if (selectedNodes.length) {
-      removeNodes(selectedNodes.map(n => n.id))
-    }
-  }
-}
-```
 
 ### 2.7 ✅ 连线规则验证
 
@@ -290,55 +174,6 @@ const handleKeyDown = (event: KeyboardEvent) => {
 1. 不能自连接（节点不能连接到自己）
 2. 不能重复连线（相同源和目标只能有一条连线）
 3. 不能形成循环（防止死循环）
-
-**实现方式**：
-```typescript
-// useLineRulesVueFlow.ts
-export function useLineRulesVueFlow() {
-  const { getNodes, getEdges } = useVueFlow()
-  
-  const canAddLine = (connection: Connection): boolean => {
-    const { source, target } = connection
-    
-    // 1. 不能自连接
-    if (source === target) return false
-    
-    // 2. 检查是否已存在连线
-    const existingEdge = getEdges.value.find(
-      e => e.source === source && e.target === target
-    )
-    if (existingEdge) return false
-    
-    // 3. 检查是否会形成循环
-    if (wouldCreateCycle(source, target)) return false
-    
-    return true
-  }
-  
-  const wouldCreateCycle = (source: string, target: string): boolean => {
-    // 使用深度优先搜索检测循环
-    const visited = new Set<string>()
-    const stack = [target]
-    
-    while (stack.length > 0) {
-      const current = stack.pop()!
-      if (current === source) return true
-      if (visited.has(current)) continue
-      visited.add(current)
-      
-      const outgoingEdges = getEdges.value.filter(e => e.source === current)
-      for (const edge of outgoingEdges) {
-        if (!visited.has(edge.target)) {
-          stack.push(edge.target)
-        }
-      }
-    }
-    return false
-  }
-  
-  return { canAddLine, wouldCreateCycle }
-}
-```
 
 ## 3. 组件交互流程
 

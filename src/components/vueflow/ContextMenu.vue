@@ -64,23 +64,29 @@ onUnmounted(() => {
   position: fixed;
   background: white;
   border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  padding: 4px 0;
-  min-width: 120px;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+  padding: 6px 0;
+  min-width: 160px;
   z-index: 1000;
 }
 
 .menu-item {
-  padding: 8px 16px;
+  padding: 10px 16px;
   cursor: pointer;
   font-size: 14px;
-  color: #333;
-  transition: background 0.2s;
+  color: #1f2937;
+  transition: all 0.15s ease;
+  font-weight: 500;
 }
 
 .menu-item:hover {
-  background: #f9fafb;
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.menu-item:active {
+  background: #e5e7eb;
 }
 
 .menu-divider {

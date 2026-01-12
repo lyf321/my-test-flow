@@ -1,9 +1,10 @@
 <template>
-  <div class="condition-node" :class="{ selected: isSelected }">
-    <Handle type="target" :position="Position.Top" :style="{ background: '#4d53e8' }" />
-    <Handle type="source" :position="Position.Bottom" :style="{ background: '#4d53e8' }" />
+  <div class="exit-guide-node" :class="{ selected: isSelected }">
+    <Handle type="target" :position="Position.Left" :style="{ background: '#f59e0b' }" />
+    <Handle type="source" :position="Position.Right" :style="{ background: '#f59e0b' }" />
     <div class="node-content">
-      <div class="node-title">{{ data.title || 'Condition' }}</div>
+      <div class="node-icon">←</div>
+      <div class="node-title">{{ data.title || '出戏引导' }}</div>
     </div>
     <button
       v-if="showAddButton"
@@ -40,7 +41,7 @@ const isSelected = computed(() => {
 // 检查是否有后续节点
 const showAddButton = computed(() => {
   const outgoingEdges = getEdges.value.filter(edge => edge.source === props.id)
-  return outgoingEdges.length === 0
+  return outgoingEdges.length === 0 && isSelected.value
 })
 
 const handleAddClick = (event: MouseEvent) => {
@@ -49,39 +50,48 @@ const handleAddClick = (event: MouseEvent) => {
 </script>
 
 <style scoped>
-.condition-node {
+.exit-guide-node {
   position: relative;
-  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-  border: 2px solid #4d53e8;
+  background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%);
+  border: 2px solid #f59e0b;
   border-radius: 12px;
   padding: 16px 20px;
   min-width: 140px;
-  min-height: 60px;
+  min-height: 70px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-  box-shadow: 0 2px 4px rgba(77, 83, 232, 0.1);
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.12);
   transition: all 0.2s ease;
+  cursor: pointer;
 }
 
-.condition-node:hover {
-  box-shadow: 0 4px 12px rgba(77, 83, 232, 0.15);
-  transform: translateY(-1px);
+.exit-guide-node:hover {
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.18);
+  transform: translateY(-2px);
 }
 
-.condition-node.selected {
-  border-color: #37d0ff;
-  box-shadow: 0 0 0 3px rgba(55, 208, 255, 0.2), 0 4px 12px rgba(77, 83, 232, 0.2);
-  background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
+.exit-guide-node.selected {
+  border-color: #fbbf24;
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.2), 0 4px 16px rgba(245, 158, 11, 0.2);
+  background: linear-gradient(135deg, #ffffff 0%, #fef3c7 100%);
 }
 
 .node-content {
   width: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 6px;
+}
+
+.node-icon {
+  font-size: 20px;
+  line-height: 1;
+  color: #f59e0b;
+  font-weight: bold;
 }
 
 .node-title {
@@ -99,7 +109,7 @@ const handleAddClick = (event: MouseEvent) => {
   transform: translateY(-50%);
   width: 28px;
   height: 28px;
-  background: #4d53e8;
+  background: #f59e0b;
   color: white;
   border: 2px solid white;
   border-radius: 50%;
@@ -111,19 +121,19 @@ const handleAddClick = (event: MouseEvent) => {
   justify-content: center;
   z-index: 10;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 2px 6px rgba(77, 83, 232, 0.3);
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);
   line-height: 1;
 }
 
 .add-node-button:hover {
-  background: #3b41d6;
+  background: #d97706;
   transform: translateY(-50%) scale(1.15);
-  box-shadow: 0 4px 12px rgba(77, 83, 232, 0.4);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
 }
 
 .add-node-button:active {
   transform: translateY(-50%) scale(0.9);
-  box-shadow: 0 1px 3px rgba(77, 83, 232, 0.3);
+  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.3);
 }
 </style>
 
