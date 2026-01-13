@@ -1,26 +1,26 @@
 <template>
-  <div class="exit-guide-node" :class="{ selected: isSelected }">
-    <Handle type="target" :position="Position.Left" :style="{ background: '#f59e0b' }" />
-    <Handle type="source" :position="Position.Right" :style="{ background: '#f59e0b' }" />
-    <div class="node-content">
-      <div class="node-icon">←</div>
-      <div class="node-title">{{ data.title || '出戏引导' }}</div>
-    </div>
-    <button
-      v-if="showAddButton"
-      class="add-node-button"
-      @click.stop="handleAddClick"
-      title="添加节点"
-    >
-      +
-    </button>
-  </div>
+  <BaseNode
+    :id="id"
+    :data="data"
+    node-type="exit-guide"
+    :input-ports="inputPorts"
+    :output-ports="outputPorts"
+    :custom-style="customStyle"
+    @add-node="handleAddNode"
+  >
+    <template #default>
+      <div class="node-content">
+        <div class="node-icon">←</div>
+        <div class="node-title">{{ data.title || '出戏引导' }}</div>
+      </div>
+    </template>
+  </BaseNode>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { Handle, useVueFlow, Position } from '@vue-flow/core'
-import '@vue-flow/core/dist/style.css'
+import BaseNode from './BaseNode.vue'
+import type { PortDefinition, NodeStyle } from '@/types/node'
+import { PortPosition, PortType } from '@/types/node'
 
 const props = defineProps<{
   id: string
@@ -31,23 +31,86 @@ const emit = defineEmits<{
   addNode: [nodeId: string, event?: MouseEvent]
 }>()
 
-const { getNode, getEdges } = useVueFlow()
+// 定义输入输出端口（左右布局）
+const inputPorts: PortDefinition[] = [
+  {
+    id: 'input',
+    name: 'input',
+    type: PortType.Input,
+    position: PortPosition.Left,
+  },
+]
 
-const isSelected = computed(() => {
-  const node = getNode.value(props.id)
-  return node?.selected || false
-})
+const outputPorts: PortDefinition[] = [
+  {
+    id: 'output',
+    name: 'output',
+    type: PortType.Output,
+    position: PortPosition.Right,
+  },
+]
 
-// 检查是否有后续节点
-const showAddButton = computed(() => {
-  const outgoingEdges = getEdges.value.filter(edge => edge.source === props.id)
-  return outgoingEdges.length === 0 && isSelected.value
-})
+// 自定义样式（橙色主题）
+const customStyle: NodeStyle = {
+  backgroundColor: 'linear-gradient(135deg, #ffffff 0%, #fffbeb 100%)',
+  borderColor: '#f59e0b',
+  minHeight: '70px',
+}
 
-const handleAddClick = (event: MouseEvent) => {
-  emit('addNode', props.id, event)
+const handleAddNode = (nodeId: string, event?: MouseEvent) => {
+  emit('addNode', nodeId, event)
 }
 </script>
+
+<style scoped>
+.node-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.node-icon {
+  font-size: 20px;
+  line-height: 1;
+  color: #f59e0b;
+  font-weight: bold;
+}
+
+.node-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* 覆盖BaseNode的样式 */
+:deep(.base-node.node-exit-guide) {
+  background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%);
+  border-color: #f59e0b;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.12);
+}
+
+:deep(.base-node.node-exit-guide:hover) {
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.18);
+}
+
+:deep(.base-node.node-exit-guide.selected) {
+  border-color: #fbbf24;
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.2), 0 4px 16px rgba(245, 158, 11, 0.2);
+  background: linear-gradient(135deg, #ffffff 0%, #fef3c7 100%);
+}
+
+:deep(.base-node.node-exit-guide .add-node-button) {
+  background: #f59e0b;
+}
+
+:deep(.base-node.node-exit-guide .add-node-button:hover) {
+  background: #d97706;
+}
+</style>
 
 <style scoped>
 .exit-guide-node {

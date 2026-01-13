@@ -150,6 +150,8 @@ import { useLineRulesVueFlow } from '@/composables/useLineRulesVueFlow'
 import { useSidebar } from '@/composables/useSidebar'
 import { useNodeSelector } from '@/composables/useNodeSelector'
 import { initialData } from '@/data/initial-data'
+import { NodeFactory } from '@/core/node-factory'
+import { nodeRegistry } from '@/core/node-registry'
 import StartNode from './nodes/StartNode.vue'
 import EndNode from './nodes/EndNode.vue'
 import ConditionNode from './nodes/ConditionNode.vue'
@@ -432,17 +434,19 @@ const redo = () => {
 // 计算可用的节点类型
 const availableNodeTypes = computed(() => {
   const context = nodeSelector.context.value
-  if (!context) return nodeSelector.nodeTypes
+  const allNodeTypes = nodeSelector.nodeTypes.value // 获取 computed 的值
+
+  if (!context) return allNodeTypes
 
   if (context.type === 'node' && context.nodeId) {
     const sourceNode = getNode.value(context.nodeId)
     return nodeSelector.getAvailableNodeTypes(sourceNode?.type)
   } else if (context.type === 'edge') {
     // 连线中间插入节点，只允许大场景
-    return nodeSelector.nodeTypes.filter(t => t.type === 'big-scene')
+    return allNodeTypes.filter(t => t.type === 'big-scene')
   }
 
-  return nodeSelector.nodeTypes
+  return allNodeTypes
 })
 
 // 处理节点加号按钮点击
@@ -490,24 +494,20 @@ const handleNodeTypeSelect = (nodeType: any) => {
       const sourceNode = getNode.value(sourceNodeId)
 
       if (sourceNode) {
-        const nodeWidth = typeof sourceNode.width === 'number' ? sourceNode.width : 160
-        const newNode: Node = {
-          id: `${nodeType.type}_${Date.now()}`,
-          type: nodeType.type,
-          position: {
+        const nodeDefinition = nodeRegistry.getNodeDefinition(nodeType.type)
+        const nodeWidth = nodeDefinition?.defaultSize?.width || 140
+        const newNode = NodeFactory.createNode(
+          nodeType.type,
+          {
             x: sourceNode.position.x + nodeWidth + 150,
             y: sourceNode.position.y,
           },
-          data: {
+          {
             title: nodeType.label,
             hasDetails: nodeType.type === 'big-scene',
             subScenes: nodeType.type === 'big-scene' ? [] : undefined,
-          },
-          style: {
-            width: nodeType.type === 'big-scene' ? 160 : 140,
-            height: nodeType.type === 'big-scene' ? 80 : 70,
-          },
-        }
+          }
+        )
 
         addNodes([newNode])
 
@@ -536,23 +536,22 @@ const handleNodeTypeSelect = (nodeType: any) => {
       const canvasX = (window.innerWidth / 2 - viewport.x) / viewport.zoom
       const canvasY = (window.innerHeight / 2 - viewport.y) / viewport.zoom
 
-      const newNode: Node = {
-        id: `${nodeType.type}_${Date.now()}`,
-        type: nodeType.type,
-        position: {
-          x: canvasX - 80, // 居中偏移
-          y: canvasY - 40,
+      const nodeDefinition = nodeRegistry.getNodeDefinition(nodeType.type)
+      const nodeWidth = nodeDefinition?.defaultSize?.width || 140
+      const nodeHeight = nodeDefinition?.defaultSize?.height || 70
+
+      const newNode = NodeFactory.createNode(
+        nodeType.type,
+        {
+          x: canvasX - nodeWidth / 2, // 居中偏移
+          y: canvasY - nodeHeight / 2,
         },
-        data: {
+        {
           title: nodeType.label,
           hasDetails: nodeType.type === 'big-scene',
           subScenes: nodeType.type === 'big-scene' ? [] : undefined,
-        },
-        style: {
-          width: nodeType.type === 'big-scene' ? 160 : 140,
-          height: nodeType.type === 'big-scene' ? 80 : 70,
-        },
-      }
+        }
+      )
 
       addNodes([newNode])
 
@@ -576,20 +575,15 @@ const handleNodeTypeSelect = (nodeType: any) => {
         const midY = (sourceNode.position.y + targetNode.position.y) / 2
 
         // 创建新节点
-        const newNode: Node = {
-          id: `${nodeType.type}_${Date.now()}`,
-          type: nodeType.type,
-          position: { x: midX, y: midY },
-          data: {
+        const newNode = NodeFactory.createNode(
+          nodeType.type,
+          { x: midX, y: midY },
+          {
             title: nodeType.label,
             hasDetails: nodeType.type === 'big-scene',
             subScenes: nodeType.type === 'big-scene' ? [] : undefined,
-          },
-          style: {
-            width: nodeType.type === 'big-scene' ? 160 : 140,
-            height: nodeType.type === 'big-scene' ? 80 : 70,
-          },
-        }
+          }
+        )
 
         // 删除原连线
         removeEdges([edge.id])
