@@ -40,9 +40,37 @@
 
 <script setup lang="ts">
 import { ref, computed, onUnmounted } from 'vue'
-import { EdgeProps, getBezierPath } from '@vue-flow/core'
+import { getBezierPath } from '@vue-flow/core'
+import type { GraphNode, Position } from '@vue-flow/core'
+import type { CSSProperties } from 'vue'
 
-const props = defineProps<EdgeProps>()
+// 自定义 Props 接口，避免直接使用 EdgeProps 的继承问题
+interface CustomEdgeProps {
+  id: string
+  source: string
+  target: string
+  sourceNode: GraphNode
+  targetNode: GraphNode
+  sourceX: number
+  sourceY: number
+  targetX: number
+  targetY: number
+  sourcePosition: Position
+  targetPosition: Position
+  type?: string
+  label?: string
+  style?: CSSProperties
+  selected?: boolean
+  markerStart?: string
+  markerEnd?: string
+  animated?: boolean
+  updatable?: boolean
+  curvature?: number
+  interactionWidth?: number
+  data?: any
+}
+
+const props = defineProps<CustomEdgeProps>()
 
 const emit = defineEmits<{
   addNode: [edgeId: string]
@@ -56,10 +84,10 @@ const path = computed(() => {
   const [pathData] = getBezierPath({
     sourceX: props.sourceX,
     sourceY: props.sourceY,
-    sourcePosition: props.sourcePosition,
+    sourcePosition: props.sourcePosition as any,
     targetX: props.targetX,
     targetY: props.targetY,
-    targetPosition: props.targetPosition,
+    targetPosition: props.targetPosition as any,
   })
   return pathData
 })
@@ -153,4 +181,3 @@ onUnmounted(() => {
   transform: scale(0.9);
 }
 </style>
-
