@@ -28,11 +28,92 @@
                 <div v-if="subScene.description" class="sub-scene-description">
                   {{ subScene.description }}
                 </div>
+                
+                <!-- 2D描述状态显示 -->
+                <div class="sub-scene-2d-status">
+                  <span 
+                    v-if="subScene.linkedTo2DNode" 
+                    class="status-badge has-2d"
+                    :class="{ 'is-shared': subScene.is2DNodeShared }"
+                  >
+                    <span class="badge-icon">🎨</span>
+                    {{ subScene.is2DNodeShared ? '共享2D描述' : '已关联2D描述' }}
+                  </span>
+                  <span v-else class="status-badge no-2d">
+                    <span class="badge-icon">⚪</span>
+                    未生成2D描述
+                  </span>
+                </div>
+                
+                <!-- 操作按钮 -->
+                <div class="sub-scene-actions">
+                  <button
+                    v-if="!subScene.linkedTo2DNode"
+                    class="action-btn primary"
+                    @click="generate2DForSubScene(index)"
+                    title="为此子场景生成独立的2D描述"
+                  >
+                    <span class="btn-icon">➕</span>
+                    生成2D描述
+                  </button>
+                  <button
+                    v-else
+                    class="action-btn secondary"
+                    @click="view2DNode(subScene.linkedTo2DNode)"
+                    title="查看关联的2D描述节点"
+                  >
+                    <span class="btn-icon">👁️</span>
+                    查看2D描述
+                  </button>
+                  <button
+                    v-if="subScene.linkedTo2DNode && !subScene.is2DNodeShared"
+                    class="action-btn danger"
+                    @click="remove2DFromSubScene(index)"
+                    title="删除此子场景的2D描述"
+                  >
+                    <span class="btn-icon">🗑️</span>
+                    删除2D
+                  </button>
+                </div>
               </div>
             </div>
             
             <div v-else class="empty-sub-scenes">
               <p>暂无小场景，点击上方按钮添加</p>
+            </div>
+            
+            <!-- 大场景级别的共享2D描述 -->
+            <div v-if="nodeData.subScenes && nodeData.subScenes.length > 0" class="shared-2d-section">
+              <div class="section-divider">
+                <span>共享2D描述</span>
+              </div>
+              
+              <div v-if="nodeData.hasShared2D" class="shared-2d-info">
+                <div class="info-header">
+                  <span class="info-icon">🎨</span>
+                  <span class="info-text">已为所有子场景创建共享2D描述</span>
+                </div>
+                <div class="shared-2d-actions">
+                  <button class="action-btn secondary" @click="viewShared2D">
+                    <span class="btn-icon">👁️</span>
+                    查看
+                  </button>
+                  <button class="action-btn danger" @click="removeShared2D">
+                    <span class="btn-icon">🗑️</span>
+                    删除共享2D
+                  </button>
+                </div>
+              </div>
+              <div v-else class="shared-2d-empty">
+                <p class="hint-text">💡 可以为所有子场景生成一个共享的2D描述节点</p>
+                <button
+                  class="action-btn primary full-width"
+                  @click="generateShared2D"
+                >
+                  <span class="btn-icon">✨</span>
+                  生成共享2D描述
+                </button>
+              </div>
             </div>
           </div>
 
@@ -73,6 +154,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
+  generate2DForSubScene: [data: { bigSceneId: string; subSceneIndex: number }]
+  generateShared2D: [data: { bigSceneId: string }]
+  remove2DFromSubScene: [data: { bigSceneId: string; subSceneIndex: number }]
+  removeShared2D: [data: { bigSceneId: string }]
+  view2DNode: [nodeId: string]
 }>()
 
 const nodeData = computed(() => props.node?.data)
@@ -114,6 +200,58 @@ const deleteSubScene = (index: number) => {
   
   if (confirm('确定要删除这个小场景吗？')) {
     props.node.data.subScenes.splice(index, 1)
+  }
+}
+
+// 为子场景生成2D描述
+const generate2DForSubScene = (subSceneIndex: number) => {
+  if (!props.node?.id) return
+  emit('generate2DForSubScene', {
+    bigSceneId: props.node.id,
+    subSceneIndex,
+  })
+}
+
+// 生成共享2D描述
+const generateShared2D = () => {
+  if (!props.node?.id) return
+  emit('generateShared2D', {
+    bigSceneId: props.node.id,
+  })
+}
+
+// 删除子场景的2D描述
+const remove2DFromSubScene = (subSceneIndex: number) => {
+  if (!props.node?.id) return
+  
+  if (confirm('确定要删除这个子场景的2D描述吗？')) {
+    emit('remove2DFromSubScene', {
+      bigSceneId: props.node.id,
+      subSceneIndex,
+    })
+  }
+}
+
+// 删除共享2D描述
+const removeShared2D = () => {
+  if (!props.node?.id) return
+  
+  if (confirm('确定要删除共享的2D描述吗？这将影响所有子场景。')) {
+    emit('removeShared2D', {
+      bigSceneId: props.node.id,
+    })
+  }
+}
+
+// 查看2D描述节点
+const view2DNode = (nodeId: string) => {
+  emit('view2DNode', nodeId)
+}
+
+// 查看共享2D描述节点
+const viewShared2D = () => {
+  if (props.node?.data?.shared2DNode) {
+    emit('view2DNode', props.node.data.shared2DNode)
   }
 }
 </script>
@@ -358,6 +496,175 @@ const deleteSubScene = (index: number) => {
 
 .slide-leave-to {
   transform: translateX(100%);
+}
+
+/* 2D描述相关样式 */
+.sub-scene-2d-status {
+  margin-top: 8px;
+  padding-left: 28px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.status-badge.has-2d {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-badge.has-2d.is-shared {
+  background: #f3e8ff;
+  color: #7c3aed;
+}
+
+.status-badge.no-2d {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.badge-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.sub-scene-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-left: 28px;
+  flex-wrap: wrap;
+}
+
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.action-btn.primary {
+  background: #8b5cf6;
+  color: white;
+}
+
+.action-btn.primary:hover {
+  background: #7c3aed;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+}
+
+.action-btn.secondary {
+  background: #e0e7ff;
+  color: #4f46e5;
+}
+
+.action-btn.secondary:hover {
+  background: #c7d2fe;
+  transform: translateY(-1px);
+}
+
+.action-btn.danger {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.action-btn.danger:hover {
+  background: #fecaca;
+  transform: translateY(-1px);
+}
+
+.action-btn.full-width {
+  width: 100%;
+  justify-content: center;
+}
+
+.btn-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* 共享2D描述区域 */
+.shared-2d-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 2px solid #e5e7eb;
+}
+
+.section-divider {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.section-divider span {
+  display: inline-block;
+  padding: 4px 12px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 12px;
+}
+
+.shared-2d-info {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.info-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.info-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.info-text {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.shared-2d-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.shared-2d-empty {
+  background: #f9fafb;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+}
+
+.hint-text {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0 0 12px 0;
+  line-height: 1.5;
 }
 </style>
 

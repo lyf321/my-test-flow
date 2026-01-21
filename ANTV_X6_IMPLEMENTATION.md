@@ -8,7 +8,6 @@
 
 - **开始节点** (Start) - 椭圆形，绿色
 - **结束节点** (End) - 椭圆形，红色
-- **条件节点** (Condition) - 矩形，橙色
 - **大场景节点** (BigScene) - 矩形，紫色，160x80
 - **入戏引导节点** (EnterGuide) - 矩形，蓝色
 - **出戏引导节点** (ExitGuide) - 矩形，粉色
@@ -128,7 +127,6 @@
 const NODE_COLORS = {
   start: '#10b981',        // 绿色
   end: '#ef4444',          // 红色
-  condition: '#f59e0b',    // 橙色
   'big-scene': '#8b5cf6',  // 紫色
   'enter-guide': '#3b82f6', // 蓝色
   'exit-guide': '#ec4899',  // 粉色
@@ -328,7 +326,7 @@ const removeGroup = () => {
 
 已在 AntV X6 中完整实现 Vue Flow 的所有功能，包括：
 
-- ✅ 所有节点类型（Start、End、Condition、BigScene、EnterGuide、ExitGuide、Group）
+- ✅ 所有节点类型（Start、End、BigScene、EnterGuide、ExitGuide、Group）
 - ✅ 框选多选 + 浮动分组菜单
 - ✅ 创建分组 + 解散分组（使用 addChild/removeChild）
 - ✅ 节点侧边加号按钮（markup + 鼠标事件）

@@ -15,7 +15,6 @@ src/
 │   │   └── nodes/
 │   │       ├── StartNode.vue        # 开始节点
 │   │       ├── EndNode.vue          # 结束节点
-│   │       ├── ConditionNode.vue    # 条件节点
 │   │       └── ...                  # 其他节点类型
 ├── composables/
 │   ├── useHistory.ts                # 撤销/重做功能

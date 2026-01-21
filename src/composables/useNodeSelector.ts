@@ -1,5 +1,6 @@
-import { ref } from 'vue'
-import type { Node, Edge } from '@vue-flow/core'
+import { ref, computed } from 'vue'
+import { nodeRegistry } from '@/core/node-registry'
+import type { NodeDefinition } from '@/types/node'
 
 export interface NodeType {
   id: string
@@ -7,14 +8,6 @@ export interface NodeType {
   icon?: string
   type: string
 }
-
-export const nodeTypes: NodeType[] = [
-  { id: 'start', label: '开始', icon: '▶', type: 'start' },
-  { id: 'end', label: '结束', icon: '■', type: 'end' },
-  { id: 'big-scene', label: '大场景', icon: '🎬', type: 'big-scene' },
-  { id: 'enter-guide', label: '入戏引导', icon: '→', type: 'enter-guide' },
-  { id: 'exit-guide', label: '出戏引导', icon: '←', type: 'exit-guide' },
-]
 
 export function useNodeSelector() {
   const visible = ref(false)
@@ -25,6 +18,16 @@ export function useNodeSelector() {
     edgeId?: string
     sourceNodeType?: string
   } | null>(null)
+
+  // 从注册表获取所有节点类型
+  const nodeTypes = computed(() => {
+    return nodeRegistry.getAllNodeTypes().map(def => ({
+      id: def.type,
+      label: def.name,
+      icon: def.icon,
+      type: def.type,
+    }))
+  })
 
   const show = (x: number, y: number, contextData: { type: 'node' | 'edge'; nodeId?: string; edgeId?: string; sourceNodeType?: string }) => {
     position.value = { x, y }
@@ -39,29 +42,31 @@ export function useNodeSelector() {
 
   // 根据上下文过滤可用的节点类型
   const getAvailableNodeTypes = (sourceNodeType?: string): NodeType[] => {
+    const allTypes = nodeTypes.value
+
     if (!sourceNodeType) {
-      return nodeTypes
+      return allTypes
     }
 
     // 根据源节点类型过滤可添加的节点类型
     switch (sourceNodeType) {
       case 'start':
         // 开始节点后面可以接：大场景、入戏引导
-        return nodeTypes.filter(t => ['big-scene', 'enter-guide'].includes(t.type))
+        return allTypes.filter(t => ['big-scene', 'enter-guide'].includes(t.type))
       case 'big-scene':
         // 大场景后面可以接：大场景、入戏引导、出戏引导、结束
-        return nodeTypes.filter(t => ['big-scene', 'enter-guide', 'exit-guide', 'end'].includes(t.type))
+        return allTypes.filter(t => ['big-scene', 'enter-guide', 'exit-guide', 'end'].includes(t.type))
       case 'enter-guide':
         // 入戏引导后面可以接：大场景
-        return nodeTypes.filter(t => t.type === 'big-scene')
+        return allTypes.filter(t => t.type === 'big-scene')
       case 'exit-guide':
         // 出戏引导后面可以接：大场景、结束
-        return nodeTypes.filter(t => ['big-scene', 'end'].includes(t.type))
+        return allTypes.filter(t => ['big-scene', 'end'].includes(t.type))
       case 'end':
         // 结束节点后面不能接任何节点
         return []
       default:
-        return nodeTypes
+        return allTypes
     }
   }
 

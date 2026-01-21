@@ -1,26 +1,43 @@
 <template>
-  <div class="enter-guide-node" :class="{ selected: isSelected }">
-    <Handle type="target" :position="Position.Left" :style="{ background: '#10b981' }" />
-    <Handle type="source" :position="Position.Right" :style="{ background: '#10b981' }" />
-    <div class="node-content">
-      <div class="node-icon">→</div>
-      <div class="node-title">{{ data.title || '入戏引导' }}</div>
+  <div class="enter-guide-wrapper">
+    <div class="guide-card">
+      <!-- 头部 -->
+      <div class="card-header">
+        <div class="header-left">
+          <div class="guide-icon">→</div>
+          <span class="guide-title">入戏引导</span>
+        </div>
+        <div class="header-right">
+          <span class="generate-badge">更新生成</span>
+        </div>
+      </div>
+      
+      <!-- 内容区 -->
+      <div class="card-content">
+        <div class="content-text">
+          {{ data.content || '此刻，你并不在地球。你正位于一艘正在遥航的虚拟船上，眼皮之外，是微末险名的星域。恒星的光在这处弧霾，宇宙安眠而流逝。' }}
+        </div>
+      </div>
     </div>
-    <button
-      v-if="showAddButton"
-      class="add-node-button"
-      @click.stop="handleAddClick"
-      title="添加节点"
-    >
-      +
-    </button>
+    
+    <!-- Vue Flow 连接点 -->
+    <Handle
+      :id="`${id}-input`"
+      type="target"
+      :position="Position.Left"
+      class="guide-handle guide-handle-input"
+    />
+    <Handle
+      :id="`${id}-output`"
+      type="source"
+      :position="Position.Right"
+      class="guide-handle guide-handle-output"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { Handle, useVueFlow, Position } from '@vue-flow/core'
-import '@vue-flow/core/dist/style.css'
+import { Handle, Position } from '@vue-flow/core'
 
 const props = defineProps<{
   id: string
@@ -30,110 +47,107 @@ const props = defineProps<{
 const emit = defineEmits<{
   addNode: [nodeId: string, event?: MouseEvent]
 }>()
-
-const { getNode, getEdges } = useVueFlow()
-
-const isSelected = computed(() => {
-  const node = getNode.value(props.id)
-  return node?.selected || false
-})
-
-// 检查是否有后续节点
-const showAddButton = computed(() => {
-  const outgoingEdges = getEdges.value.filter(edge => edge.source === props.id)
-  return outgoingEdges.length === 0 && isSelected.value
-})
-
-const handleAddClick = (event: MouseEvent) => {
-  emit('addNode', props.id, event)
-}
 </script>
 
 <style scoped>
-.enter-guide-node {
+.enter-guide-wrapper {
   position: relative;
-  background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
-  border: 2px solid #10b981;
+  width: 320px;
+}
+
+.guide-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
   border-radius: 12px;
-  padding: 16px 20px;
-  min-width: 140px;
-  min-height: 70px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.card-header {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #fafafa;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.guide-icon {
+  width: 24px;
+  height: 24px;
+  background: #8b5cf6;
+  border-radius: 4px;
+  color: white;
+  display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.12);
-  transition: all 0.2s ease;
-  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  flex-shrink: 0;
 }
 
-.enter-guide-node:hover {
-  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.18);
-  transform: translateY(-2px);
-}
-
-.enter-guide-node.selected {
-  border-color: #34d399;
-  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2), 0 4px 16px rgba(16, 185, 129, 0.2);
-  background: linear-gradient(135deg, #ffffff 0%, #d1fae5 100%);
-}
-
-.node-content {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-
-.node-icon {
-  font-size: 20px;
-  line-height: 1;
-  color: #10b981;
-  font-weight: bold;
-}
-
-.node-title {
+.guide-title {
   font-size: 14px;
   font-weight: 600;
   color: #1f2937;
-  text-align: center;
-  line-height: 1.4;
 }
 
-.add-node-button {
-  position: absolute;
-  right: -14px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 28px;
-  height: 28px;
-  background: #10b981;
-  color: white;
-  border: 2px solid white;
-  border-radius: 50%;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
+.header-right {
   display: flex;
   align-items: center;
-  justify-content: center;
-  z-index: 10;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
-  line-height: 1;
+  gap: 8px;
 }
 
-.add-node-button:hover {
-  background: #059669;
-  transform: translateY(-50%) scale(1.15);
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+.generate-badge {
+  font-size: 12px;
+  color: #8b5cf6;
+  background: #f3e8ff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 500;
 }
 
-.add-node-button:active {
-  transform: translateY(-50%) scale(0.9);
-  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.3);
+.card-content {
+  padding: 16px;
+}
+
+.content-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #4b5563;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Vue Flow 连接点 */
+.guide-handle {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #8b5cf6;
+  background: white;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.guide-handle:hover {
+  width: 14px;
+  height: 14px;
+  border-width: 3px;
+  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.2);
+}
+
+.guide-handle-input {
+  left: -5px;
+}
+
+.guide-handle-output {
+  right: -5px;
 }
 </style>
 

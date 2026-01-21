@@ -104,7 +104,7 @@ const showAddButton = computed(() => isHovered.value)
 
 const style = computed(() => ({
   stroke: props.style?.stroke || '#4d53e8',
-  strokeWidth: props.style?.strokeWidth || 2,
+  strokeWidth: props.style?.strokeWidth || 1,
   ...props.style,
 }))
 

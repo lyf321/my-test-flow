@@ -8,10 +8,10 @@
       :max-zoom="4"
       :snap-to-grid="true" 
       :snap-grid="[20, 20]" 
-      :connection-line-style="{ stroke: '#4d53e8', strokeWidth: 2.5 }"
+      :connection-line-style="{ stroke: '#4d53e8', strokeWidth: 1 }"
       :default-edge-options="{
         type: 'smoothstep',
-        style: { stroke: '#4d53e8', strokeWidth: 2.5 },
+        style: { stroke: '#4d53e8', strokeWidth: 1 },
         animated: false
       }" 
       :nodes-selectable="true"
@@ -44,11 +44,21 @@
       <template #node-end="{ data, id }">
         <EndNode :id="id" :data="data" @add-node="(nodeId, event) => handleNodeAdd(nodeId, event)" />
       </template>
-      <template #node-condition="{ data, id }">
-        <ConditionNode :id="id" :data="data" @add-node="(nodeId, event) => handleNodeAdd(nodeId, event)" />
-      </template>
       <template #node-big-scene="{ data, id }">
-        <BigSceneNode :id="id" :data="data" @add-node="(nodeId, event) => handleNodeAdd(nodeId, event)" />
+        <BigSceneNode 
+          :id="id" 
+          :data="data" 
+          @add-node="(nodeId: string, event?: MouseEvent) => handleNodeAdd(nodeId, event)"
+          @add-sub-scene="handleAddSubScene(id)"
+          @delete-sub-scene="(index: number) => handleDeleteSubScene(id, index)"
+          @add2D="(index: number) => handleAdd2DFromCard(id, index)"
+          @view2D="handleView2DNode"
+          @remove2D="(index: number) => handleRemove2DFromCard(id, index)"
+          @regenerate="handleRegenerate(id)"
+          @generate-outline="handleGenerateOutline(id)"
+          @update-data="(newData: any) => handleUpdateNodeData(id, newData)"
+          @update-sub-scene="(subScene: any, index: number) => handleUpdateSubScene(id, subScene, index)"
+        />
       </template>
       <template #node-enter-guide="{ data, id }">
         <EnterGuideNode :id="id" :data="data" @add-node="(nodeId, event) => handleNodeAdd(nodeId, event)" />
@@ -59,6 +69,9 @@
       <template #node-group="{ data, id }">
         <GroupNode :id="id" :data="data" />
       </template>
+      <template #node-2d-description="{ data, id }">
+        <TwoDDescriptionNode :id="id" :data="data" @add-node="(nodeId, event) => handleNodeAdd(nodeId, event)" />
+      </template>
 
       <!-- 自定义边 -->
       <template #edge-smoothstep="edgeProps">
@@ -67,7 +80,16 @@
     </VueFlow>
 
     <!-- 右侧边栏 -->
-    <Sidebar :visible="sidebar.visible.value" :node="sidebar.selectedNode.value" @close="sidebar.close" />
+    <Sidebar 
+      :visible="sidebar.visible.value" 
+      :node="sidebar.selectedNode.value" 
+      @close="sidebar.close"
+      @generate2DForSubScene="handleGenerate2DForSubScene"
+      @generateShared2D="handleGenerateShared2D"
+      @remove2DFromSubScene="handleRemove2DFromSubScene"
+      @removeShared2D="handleRemoveShared2D"
+      @view2DNode="handleView2DNode"
+    />
 
     <!-- 节点选择器 -->
     <NodeSelector :visible="nodeSelector.visible.value" :x="nodeSelector.position.value.x"
@@ -91,7 +113,7 @@
     </div>
 
     <!-- 浮动分组菜单 -->
-    <div v-if="groupMenu.visible" class="group-menu" :style="{ left: `${groupMenu.x}px`, top: `${groupMenu.y}px` }"
+    <!-- <div v-if="groupMenu.visible" class="group-menu" :style="{ left: `${groupMenu.x}px`, top: `${groupMenu.y}px` }"
       @click.stop>
       <div class="menu-header">
         已选中 {{ selectedNodeIds.length }} 个节点
@@ -108,7 +130,7 @@
       <div class="menu-item cancel" @click="closeGroupMenu">
         <span>取消</span>
       </div>
-    </div>
+    </div> -->
 
     <!-- 右下角控制栏 -->
     <div class="bottom-controls">
@@ -128,7 +150,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { VueFlow, useVueFlow, type Connection, SelectionMode, applyChanges } from '@vue-flow/core'
 import type { Node } from '@vue-flow/core'
 
@@ -150,13 +172,15 @@ import { useLineRulesVueFlow } from '@/composables/useLineRulesVueFlow'
 import { useSidebar } from '@/composables/useSidebar'
 import { useNodeSelector } from '@/composables/useNodeSelector'
 import { initialData } from '@/data/initial-data'
+import { NodeFactory } from '@/core/node-factory'
+import { nodeRegistry } from '@/core/node-registry'
 import StartNode from './nodes/StartNode.vue'
 import EndNode from './nodes/EndNode.vue'
-import ConditionNode from './nodes/ConditionNode.vue'
 import BigSceneNode from './nodes/BigSceneNode.vue'
 import EnterGuideNode from './nodes/EnterGuideNode.vue'
 import ExitGuideNode from './nodes/ExitGuideNode.vue'
 import GroupNode from './nodes/GroupNode.vue'
+import TwoDDescriptionNode from './nodes/TwoDDescriptionNode.vue'
 import CustomEdge from './edges/CustomEdge.vue'
 import ContextMenu from './ContextMenu.vue'
 import Sidebar from './Sidebar.vue'
@@ -166,6 +190,10 @@ const { push: pushHistory, undo: undoHistory, redo: redoHistory } = useHistory()
 const { canAddLine } = useLineRulesVueFlow()
 const sidebar = useSidebar()
 const nodeSelector = useNodeSelector()
+
+// 导入2D描述管理器
+import { use2DDescriptionManager } from '@/composables/use2DDescriptionManager'
+const twoDManager = use2DDescriptionManager()
 
 // Vue Flow 实例
 const {
@@ -192,12 +220,12 @@ const currentZoom = ref(1)
 // 选中节点管理
 const selectedNodeIds = ref<string[]>([])
 
-// 浮动分组菜单
-const groupMenu = ref({
-  visible: false,
-  x: 0,
-  y: 0,
-})
+// // 浮动分组菜单
+// const groupMenu = ref({
+//   visible: false,
+//   x: 0,
+//   y: 0,
+// })
 
 // 防止框选后立即关闭菜单的标志
 let isSelectingNodes = false
@@ -218,7 +246,7 @@ const onNodesChange = (changes: any) => {
   // 手动检测选中变化
   const selectChanges = changes.filter((c: any) => c.type === 'select')
   if (selectChanges.length > 0) {
-    console.log('🎯 检测到选中变化:', selectChanges)
+    console.log('🎯 检测到选中变化:', selectChanges, nodes.value, edges.value)
     handleSelectionChange()
   }
   
@@ -232,8 +260,33 @@ const onNodesChange = (changes: any) => {
 const onEdgesChange = (changes: any) => {
   console.log('📝 onEdgesChange 触发:', changes)
   
-  // 🔑 关键：必须应用 changes
+  // 收集需要删除的2D节点
+  const nodesToRemove: string[] = []
+  
+  // 🔑 在应用删除之前，先清理关联数据
+  changes.forEach((change: any) => {
+    if (change.type === 'remove') {
+      // 清理2D描述连线的关联关系，并返回需要删除的节点
+      const nodeToRemove = twoDManager.cleanupConnectionData(change.id)
+      if (nodeToRemove) {
+        nodesToRemove.push(nodeToRemove)
+      }
+    }
+  })
+  
+  // 应用边的删除
   edges.value = applyChanges(changes, edges.value)
+  
+  // 在边删除后，再删除不需要的2D节点
+  if (nodesToRemove.length > 0) {
+    console.log('🗑️ 准备删除不再需要的2D节点:', nodesToRemove)
+    // 使用 nextTick 确保边删除已完成
+    nextTick(() => {
+      const { removeNodes } = useVueFlow()
+      removeNodes(nodesToRemove)
+      console.log('✅ 已删除2D节点:', nodesToRemove)
+    })
+  }
   
   // 更新历史记录
   const nodesData = Array.isArray(getNodes.value) ? getNodes.value : [...getNodes.value]
@@ -261,6 +314,159 @@ const onNodeClick = (event: any) => {
     sidebar.open(node)
   } else {
     sidebar.close()
+  }
+}
+
+// 处理2D描述相关事件
+const handleGenerate2DForSubScene = (data: { bigSceneId: string; subSceneIndex: number }) => {
+  const bigSceneNode = getNode.value(data.bigSceneId)
+  if (bigSceneNode) {
+    twoDManager.generate2DForSubScene(bigSceneNode, data.subSceneIndex)
+  }
+}
+
+const handleGenerateShared2D = (data: { bigSceneId: string }) => {
+  const bigSceneNode = getNode.value(data.bigSceneId)
+  if (bigSceneNode) {
+    twoDManager.generateShared2D(bigSceneNode)
+  }
+}
+
+const handleRemove2DFromSubScene = (data: { bigSceneId: string; subSceneIndex: number }) => {
+  const bigSceneNode = getNode.value(data.bigSceneId)
+  if (bigSceneNode) {
+    twoDManager.remove2DFromSubScene(bigSceneNode, data.subSceneIndex)
+  }
+}
+
+const handleRemoveShared2D = (data: { bigSceneId: string }) => {
+  const bigSceneNode = getNode.value(data.bigSceneId)
+  if (bigSceneNode) {
+    twoDManager.removeShared2D(bigSceneNode)
+  }
+}
+
+const handleView2DNode = (nodeId: string) => {
+  const node = getNode.value(nodeId)
+  if (node) {
+    // 聚焦到节点
+    const viewport = getViewport()
+    setViewport({
+      x: -node.position.x * viewport.zoom + window.innerWidth / 2,
+      y: -node.position.y * viewport.zoom + window.innerHeight / 2,
+      zoom: viewport.zoom
+    })
+    
+    // 高亮节点（短暂选中）
+    const allNodes = getNodes.value
+    allNodes.forEach(n => n.selected = false)
+    node.selected = true
+    
+    // 1秒后取消选中
+    setTimeout(() => {
+      node.selected = false
+    }, 1000)
+  }
+}
+
+// 大场景卡片相关事件处理
+const handleAddSubScene = (bigSceneId: string) => {
+  const node = getNode.value(bigSceneId)
+  if (!node) return
+
+  const newSubScene = {
+    id: `sub_scene_${Date.now()}`,
+    name: `小场景 ${(node.data.subScenes?.length || 0) + 1}`,
+    description: '场景描述',
+    config: {},
+  }
+
+  if (!node.data.subScenes) {
+    node.data.subScenes = []
+  }
+
+  node.data.subScenes.push(newSubScene)
+  
+  // 更新历史
+  const nodesData = Array.isArray(getNodes.value) ? getNodes.value : [...getNodes.value]
+  const edgesData = Array.isArray(getEdges.value) ? getEdges.value : [...getEdges.value]
+  pushHistory({ nodes: nodesData, edges: edgesData })
+}
+
+const handleDeleteSubScene = (bigSceneId: string, index: number) => {
+  const node = getNode.value(bigSceneId)
+  if (!node || !node.data.subScenes) return
+
+  const subScene = node.data.subScenes[index]
+  
+  // 如果子场景有关联的2D描述，先删除连线
+  if (subScene.linkedTo2DNode) {
+    handleRemove2DFromCard(bigSceneId, index)
+  }
+
+  node.data.subScenes.splice(index, 1)
+  
+  // 更新历史
+  const nodesData = Array.isArray(getNodes.value) ? getNodes.value : [...getNodes.value]
+  const edgesData = Array.isArray(getEdges.value) ? getEdges.value : [...getEdges.value]
+  pushHistory({ nodes: nodesData, edges: edgesData })
+}
+
+const handleAdd2DFromCard = (bigSceneId: string, subSceneIndex: number) => {
+  const bigSceneNode = getNode.value(bigSceneId)
+  if (bigSceneNode) {
+    twoDManager.generate2DForSubScene(bigSceneNode, subSceneIndex)
+    
+    // 更新历史
+    const nodesData = Array.isArray(getNodes.value) ? getNodes.value : [...getNodes.value]
+    const edgesData = Array.isArray(getEdges.value) ? getEdges.value : [...getEdges.value]
+    pushHistory({ nodes: nodesData, edges: edgesData })
+  }
+}
+
+const handleRemove2DFromCard = (bigSceneId: string, subSceneIndex: number) => {
+  const bigSceneNode = getNode.value(bigSceneId)
+  if (bigSceneNode) {
+    twoDManager.remove2DFromSubScene(bigSceneNode, subSceneIndex)
+    
+    // 更新历史
+    const nodesData = Array.isArray(getNodes.value) ? getNodes.value : [...getNodes.value]
+    const edgesData = Array.isArray(getEdges.value) ? getEdges.value : [...getEdges.value]
+    pushHistory({ nodes: nodesData, edges: edgesData })
+  }
+}
+
+const handleRegenerate = (bigSceneId: string) => {
+  console.log('重新生成场景:', bigSceneId)
+  // TODO: 实现重新生成逻辑
+}
+
+const handleGenerateOutline = (bigSceneId: string) => {
+  console.log('生成小场景大纲:', bigSceneId)
+  // TODO: 实现生成大纲逻辑
+}
+
+const handleUpdateNodeData = (nodeId: string, newData: any) => {
+  const node = getNode.value(nodeId)
+  if (node) {
+    node.data = { ...node.data, ...newData }
+    
+    // 更新历史
+    const nodesData = Array.isArray(getNodes.value) ? getNodes.value : [...getNodes.value]
+    const edgesData = Array.isArray(getEdges.value) ? getEdges.value : [...getEdges.value]
+    pushHistory({ nodes: nodesData, edges: edgesData })
+  }
+}
+
+const handleUpdateSubScene = (bigSceneId: string, subScene: any, index: number) => {
+  const node = getNode.value(bigSceneId)
+  if (node && node.data.subScenes && node.data.subScenes[index]) {
+    node.data.subScenes[index] = { ...node.data.subScenes[index], ...subScene }
+    
+    // 更新历史
+    const nodesData = Array.isArray(getNodes.value) ? getNodes.value : [...getNodes.value]
+    const edgesData = Array.isArray(getEdges.value) ? getEdges.value : [...getEdges.value]
+    pushHistory({ nodes: nodesData, edges: edgesData })
   }
 }
 
@@ -295,17 +501,17 @@ const handleEdgeAddNode = (edgeId: string) => {
 
 // 点击画布关闭分组菜单
 const onPaneClick = () => {
-  // 如果刚刚完成框选，不要立即关闭菜单
-  if (isSelectingNodes) {
-    isSelectingNodes = false
-    return
-  }
-  groupMenu.value.visible = false
+  // // 如果刚刚完成框选，不要立即关闭菜单
+  // if (isSelectingNodes) {
+  //   isSelectingNodes = false
+  //   return
+  // }
+  // groupMenu.value.visible = false
 }
 
 const onPaneContextMenu = (event: MouseEvent) => {
   event.preventDefault()
-  groupMenu.value.visible = false // 关闭分组菜单
+  // groupMenu.value.visible = false // 关闭分组菜单
   contextMenu.value = {
     visible: true,
     x: event.clientX,
@@ -397,7 +603,7 @@ const initNodes = () => {
     type: 'smoothstep',
     style: {
       stroke: '#4d53e8',
-      strokeWidth: 2,
+      strokeWidth: 1,
     },
   }))
 
@@ -432,17 +638,19 @@ const redo = () => {
 // 计算可用的节点类型
 const availableNodeTypes = computed(() => {
   const context = nodeSelector.context.value
-  if (!context) return nodeSelector.nodeTypes
+  const allNodeTypes = nodeSelector.nodeTypes.value // 获取 computed 的值
+
+  if (!context) return allNodeTypes
 
   if (context.type === 'node' && context.nodeId) {
     const sourceNode = getNode.value(context.nodeId)
     return nodeSelector.getAvailableNodeTypes(sourceNode?.type)
   } else if (context.type === 'edge') {
     // 连线中间插入节点，只允许大场景
-    return nodeSelector.nodeTypes.filter(t => t.type === 'big-scene')
+    return allNodeTypes.filter(t => t.type === 'big-scene')
   }
 
-  return nodeSelector.nodeTypes
+  return allNodeTypes
 })
 
 // 处理节点加号按钮点击
@@ -490,24 +698,20 @@ const handleNodeTypeSelect = (nodeType: any) => {
       const sourceNode = getNode.value(sourceNodeId)
 
       if (sourceNode) {
-        const nodeWidth = typeof sourceNode.width === 'number' ? sourceNode.width : 160
-        const newNode: Node = {
-          id: `${nodeType.type}_${Date.now()}`,
-          type: nodeType.type,
-          position: {
+        const nodeDefinition = nodeRegistry.getNodeDefinition(nodeType.type)
+        const nodeWidth = nodeDefinition?.defaultSize?.width || 140
+        const newNode = NodeFactory.createNode(
+          nodeType.type,
+          {
             x: sourceNode.position.x + nodeWidth + 150,
             y: sourceNode.position.y,
           },
-          data: {
+          {
             title: nodeType.label,
             hasDetails: nodeType.type === 'big-scene',
             subScenes: nodeType.type === 'big-scene' ? [] : undefined,
-          },
-          style: {
-            width: nodeType.type === 'big-scene' ? 160 : 140,
-            height: nodeType.type === 'big-scene' ? 80 : 70,
-          },
-        }
+          }
+        )
 
         addNodes([newNode])
 
@@ -519,7 +723,7 @@ const handleNodeTypeSelect = (nodeType: any) => {
           type: 'smoothstep',
           style: {
             stroke: '#4d53e8',
-            strokeWidth: 2,
+            strokeWidth: 1,
           },
         }
         addEdges([newEdge])
@@ -536,23 +740,22 @@ const handleNodeTypeSelect = (nodeType: any) => {
       const canvasX = (window.innerWidth / 2 - viewport.x) / viewport.zoom
       const canvasY = (window.innerHeight / 2 - viewport.y) / viewport.zoom
 
-      const newNode: Node = {
-        id: `${nodeType.type}_${Date.now()}`,
-        type: nodeType.type,
-        position: {
-          x: canvasX - 80, // 居中偏移
-          y: canvasY - 40,
+      const nodeDefinition = nodeRegistry.getNodeDefinition(nodeType.type)
+      const nodeWidth = nodeDefinition?.defaultSize?.width || 140
+      const nodeHeight = nodeDefinition?.defaultSize?.height || 70
+
+      const newNode = NodeFactory.createNode(
+        nodeType.type,
+        {
+          x: canvasX - nodeWidth / 2, // 居中偏移
+          y: canvasY - nodeHeight / 2,
         },
-        data: {
+        {
           title: nodeType.label,
           hasDetails: nodeType.type === 'big-scene',
           subScenes: nodeType.type === 'big-scene' ? [] : undefined,
-        },
-        style: {
-          width: nodeType.type === 'big-scene' ? 160 : 140,
-          height: nodeType.type === 'big-scene' ? 80 : 70,
-        },
-      }
+        }
+      )
 
       addNodes([newNode])
 
@@ -576,20 +779,15 @@ const handleNodeTypeSelect = (nodeType: any) => {
         const midY = (sourceNode.position.y + targetNode.position.y) / 2
 
         // 创建新节点
-        const newNode: Node = {
-          id: `${nodeType.type}_${Date.now()}`,
-          type: nodeType.type,
-          position: { x: midX, y: midY },
-          data: {
+        const newNode = NodeFactory.createNode(
+          nodeType.type,
+          { x: midX, y: midY },
+          {
             title: nodeType.label,
             hasDetails: nodeType.type === 'big-scene',
             subScenes: nodeType.type === 'big-scene' ? [] : undefined,
-          },
-          style: {
-            width: nodeType.type === 'big-scene' ? 160 : 140,
-            height: nodeType.type === 'big-scene' ? 80 : 70,
-          },
-        }
+          }
+        )
 
         // 删除原连线
         removeEdges([edge.id])
@@ -605,7 +803,7 @@ const handleNodeTypeSelect = (nodeType: any) => {
           type: 'smoothstep',
           style: {
             stroke: '#4d53e8',
-            strokeWidth: 2,
+            strokeWidth: 1,
           },
         }
         const edge2: Edge = {
@@ -615,7 +813,7 @@ const handleNodeTypeSelect = (nodeType: any) => {
           type: 'smoothstep',
           style: {
             stroke: '#4d53e8',
-            strokeWidth: 2,
+            strokeWidth: 1,
           },
         }
         addEdges([edge1, edge2])
@@ -689,7 +887,7 @@ const arrangeNodes = () => {
   })
 
   // 布局参数
-  const horizontalSpacing = 250
+  const horizontalSpacing = 400
   const verticalSpacing = 150
   const startX = 100
   const startY = 100
@@ -787,16 +985,16 @@ const handleSelectionChange = () => {
     console.log('📍 屏幕坐标:', screenPos)
 
     // 使用 setTimeout 确保在下一帧显示菜单
-    setTimeout(() => {
-      groupMenu.value = {
-        visible: true,
-        x: screenPos.x,
-        y: screenPos.y + 50, // 偏移一点显示在下方
-      }
-      console.log('✅ 浮动菜单已显示:', groupMenu.value)
-    }, 0)
+    // setTimeout(() => {
+    //   groupMenu.value = {
+    //     visible: true,
+    //     x: screenPos.x,
+    //     y: screenPos.y + 50, // 偏移一点显示在下方
+    //   }
+    //   console.log('✅ 浮动菜单已显示:', groupMenu.value)
+    // }, 0)
   } else {
-    groupMenu.value.visible = false
+    // groupMenu.value.visible = false
     console.log('ℹ️ 选中节点少于2个，隐藏菜单')
   }
 }
@@ -819,190 +1017,187 @@ const hasGroupInSelection = computed(() => {
 
 // 关闭分组菜单
 const closeGroupMenu = () => {
-  groupMenu.value.visible = false
+  // groupMenu.value.visible = false
 }
 
 // 创建分组（使用真正的父子节点关系）
-const createGroup = () => {
-  const selectedNodes = getNodes.value.filter((n: any) => n.selected && n.type !== 'group')
+// const createGroup = () => {
+//   const selectedNodes = getNodes.value.filter((n: any) => n.selected && n.type !== 'group')
   
-  if (selectedNodes.length < 2) {
-    alert('请至少选中两个节点来创建分组')
-    return
-  }
+//   if (selectedNodes.length < 2) {
+//     alert('请至少选中两个节点来创建分组')
+//     return
+//   }
 
-  console.log('🎨 开始创建分组，选中节点:', selectedNodes)
+//   console.log('🎨 开始创建分组，选中节点:', selectedNodes)
 
-  // 计算分组的边界
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+//   // 计算分组的边界
+//   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
   
-  selectedNodes.forEach((node: any) => {
-    const nodeWidth = node.width || node.dimensions?.width || 
-                     (node.type === 'big-scene' ? 160 : 140)
-    const nodeHeight = node.height || node.dimensions?.height || 
-                      (node.type === 'big-scene' ? 80 : 70)
+//   selectedNodes.forEach((node: any) => {
+//     const nodeWidth = node.width || node.dimensions?.width || 
+//                      (node.type === 'big-scene' ? 160 : 140)
+//     const nodeHeight = node.height || node.dimensions?.height || 
+//                       (node.type === 'big-scene' ? 80 : 70)
     
-    minX = Math.min(minX, node.position.x)
-    minY = Math.min(minY, node.position.y)
-    maxX = Math.max(maxX, node.position.x + nodeWidth)
-    maxY = Math.max(maxY, node.position.y + nodeHeight)
-  })
+//     minX = Math.min(minX, node.position.x)
+//     minY = Math.min(minY, node.position.y)
+//     maxX = Math.max(maxX, node.position.x + nodeWidth)
+//     maxY = Math.max(maxY, node.position.y + nodeHeight)
+//   })
 
-  // 添加边距
-  const padding = 60
-  const groupX = minX - padding
-  const groupY = minY - padding
-  const groupWidth = maxX - minX + padding * 2
-  const groupHeight = maxY - minY + padding * 2
+//   // 添加边距
+//   const padding = 60
+//   const groupX = minX - padding
+//   const groupY = minY - padding
+//   const groupWidth = maxX - minX + padding * 2
+//   const groupHeight = maxY - minY + padding * 2
 
-  // 创建分组节点（作为视觉背景）
-  const groupId = `group_${Date.now()}`
-  const groupNode: Node = {
-    id: groupId,
-    type: 'group',
-    position: { x: groupX, y: groupY },
-    data: { 
-      label: `分组`,
-      nodeCount: selectedNodes.length,
-      nodeIds: selectedNodes.map((n: any) => n.id),  // 保存分组内的节点ID
-    },
-    style: {
-      width: `${groupWidth}px`,
-      height: `${groupHeight}px`,
-      zIndex: -10,  // 确保在所有节点下方
-    },
-    selectable: false,  // 分组节点不可选中，避免干扰
-  }
+//   // 创建分组节点（作为视觉背景）
+//   const groupId = `group_${Date.now()}`
+//   const groupNode: Node = {
+//     id: groupId,
+//     type: 'group',
+//     position: { x: groupX, y: groupY },
+//     data: { 
+//       label: `分组`,
+//       nodeCount: selectedNodes.length,
+//       nodeIds: selectedNodes.map((n: any) => n.id),  // 保存分组内的节点ID
+//     },
+//     style: {
+//       width: `${groupWidth}px`,
+//       height: `${groupHeight}px`,
+//       zIndex: -10,  // 确保在所有节点下方
+//     },
+//     selectable: false,  // 分组节点不可选中，避免干扰
+//   }
 
-  console.log('📦 创建分组节点:', groupNode)
+//   console.log('📦 创建分组节点:', groupNode)
 
-  // 🔑 关键逻辑：
-  // 1. 设置 parentNode（节点会跟随分组移动）
-  // 2. 计算相对坐标（相对于分组的位置）
-  // 3. 取消选中状态
-  const updatedNodes = getNodes.value.map((node: any) => {
-    const isInGroup = selectedNodes.find((n: any) => n.id === node.id)
+//   // 🔑 关键逻辑：
+//   // 1. 设置 parentNode（节点会跟随分组移动）
+//   // 2. 计算相对坐标（相对于分组的位置）
+//   // 3. 取消选中状态
+//   const updatedNodes = getNodes.value.map((node: any) => {
+//     const isInGroup = selectedNodes.find((n: any) => n.id === node.id)
     
-    if (isInGroup) {
-      // 计算相对于分组的位置
-      const relativeX = node.position.x - groupX
-      const relativeY = node.position.y - groupY
+//     if (isInGroup) {
+//       // 计算相对于分组的位置
+//       const relativeX = node.position.x - groupX
+//       const relativeY = node.position.y - groupY
       
-      console.log(`📍 节点 ${node.id}: 绝对坐标 (${node.position.x}, ${node.position.y}) → 相对坐标 (${relativeX}, ${relativeY})`)
+//       console.log(`📍 节点 ${node.id}: 绝对坐标 (${node.position.x}, ${node.position.y}) → 相对坐标 (${relativeX}, ${relativeY})`)
       
-      return {
-        ...node,
-        parentNode: groupId,  // 设置父节点
-        // position: { x: relativeX, y: relativeY },  // 转换为相对坐标
-        // extent: 'parent' as const,  // 限制在父节点内
-        selected: false,  // 取消选中
-      }
-    }
+//       return {
+//         ...node,
+//         parentNode: groupId,  // 设置父节点
+//         // position: { x: relativeX, y: relativeY },  // 转换为相对坐标
+//         // extent: 'parent' as const,  // 限制在父节点内
+//         selected: false,  // 取消选中
+//       }
+//     }
     
-    // 其他节点只取消选中
-    return {
-      ...node,
-      selected: false,
-    }
-  })
+//     // 其他节点只取消选中
+//     return {
+//       ...node,
+//       selected: false,
+//     }
+//   })
 
-  // 添加分组节点到列表开头（确保它在子节点之前渲染）
-  nodes.value = [groupNode, ...updatedNodes]
+//   // 添加分组节点到列表开头（确保它在子节点之前渲染）
+//   nodes.value = [groupNode, ...updatedNodes]
 
-  // 关闭菜单
-  closeGroupMenu()
+//   // 关闭菜单
+//   closeGroupMenu()
 
-  // 更新历史记录
-  const nodesData = Array.isArray(getNodes.value) ? getNodes.value : [...getNodes.value]
-  const edgesData = Array.isArray(getEdges.value) ? getEdges.value : [...getEdges.value]
-  // @ts-ignore
-  pushHistory({ nodes: nodesData, edges: edgesData })
+//   // 更新历史记录
+//   const nodesData = Array.isArray(getNodes.value) ? getNodes.value : [...getNodes.value]
+//   const edgesData = Array.isArray(getEdges.value) ? getEdges.value : [...getEdges.value]
+//   // @ts-ignore
+//   pushHistory({ nodes: nodesData, edges: edgesData })
 
-  console.log('✅ 创建分组成功:', groupId)
-}
+//   console.log('✅ 创建分组成功:', groupId)
+// }
 
 // 取消分组（从菜单调用）
 // 取消分组：删除包含选中节点的分组
-const removeGroup = () => {
-  const selectedNodes = nodes.value.filter((n: any) => n.selected)
-  const selectedNodeIds = selectedNodes.map((n: any) => n.id)
+// const removeGroup = () => {
+//   const selectedNodes = nodes.value.filter((n: any) => n.selected)
+//   const selectedNodeIds = selectedNodes.map((n: any) => n.id)
   
-  // 找到包含这些节点的分组
-  const groupsToRemove = nodes.value.filter((n: any) => {
-    if (n.type === 'group' && n.data?.nodeIds) {
-      return n.data.nodeIds.some((id: string) => selectedNodeIds.includes(id))
-    }
-    return false
-  })
+//   // 找到包含这些节点的分组
+//   const groupsToRemove = nodes.value.filter((n: any) => {
+//     if (n.type === 'group' && n.data?.nodeIds) {
+//       return n.data.nodeIds.some((id: string) => selectedNodeIds.includes(id))
+//     }
+//     return false
+//   })
   
-  if (groupsToRemove.length === 0) {
-    alert('选中的节点不在任何分组内')
-    return
-  }
+//   if (groupsToRemove.length === 0) {
+//     alert('选中的节点不在任何分组内')
+//     return
+//   }
 
-  // 删除这些分组
-  groupsToRemove.forEach((groupNode: any) => {
-    ungroupNodes(groupNode.id)
-  })
+//   // 删除这些分组
+//   groupsToRemove.forEach((groupNode: any) => {
+//     ungroupNodes(groupNode.id)
+//   })
 
-  // 关闭菜单
-  closeGroupMenu()
+//   // 关闭菜单
+//   closeGroupMenu()
   
-  console.log(`✅ 已删除 ${groupsToRemove.length} 个分组`)
-}
+//   console.log(`✅ 已删除 ${groupsToRemove.length} 个分组`)
+// }
 
 // 解散分组（恢复子节点为独立节点）
-const ungroupNodes = (groupId: string) => {
-  console.log('🔓 开始解散分组:', groupId)
+// const ungroupNodes = (groupId: string) => {
+//   console.log('🔓 开始解散分组:', groupId)
   
-  const groupNode = getNode.value(groupId)
-  if (!groupNode) {
-    console.warn('分组节点不存在:', groupId)
-    return
-  }
+//   const groupNode = getNode.value(groupId)
+//   if (!groupNode) {
+//     console.warn('分组节点不存在:', groupId)
+//     return
+//   }
 
-  const groupPosition = groupNode.position
+//   const groupPosition = groupNode.position
 
-  // 找到所有属于这个分组的子节点
-  const childNodes = getNodes.value.filter((n: any) => n.parentNode === groupId)
+//   // 找到所有属于这个分组的子节点
+//   const childNodes = getNodes.value.filter((n: any) => n.parentNode === groupId)
   
-  console.log('📦 分组内的子节点:', childNodes)
+//   console.log('📦 分组内的子节点:', childNodes)
 
-  // 更新节点：移除父子关系并恢复绝对坐标
-  const updatedNodes = getNodes.value
-    .map((node: any) => {
-      if (node.parentNode === groupId) {
-        // 计算绝对位置
-        const absoluteX = groupPosition.x + node.position.x
-        const absoluteY = groupPosition.y + node.position.y
+//   // 更新节点：移除父子关系并恢复绝对坐标
+//   const updatedNodes = getNodes.value
+//     .map((node: any) => {
+//       if (node.parentNode === groupId) {
+//         // 计算绝对位置
+//         const absoluteX = groupPosition.x + node.position.x
+//         const absoluteY = groupPosition.y + node.position.y
         
-        console.log(`📍 节点 ${node.id}: 相对坐标 (${node.position.x}, ${node.position.y}) → 绝对坐标 (${absoluteX}, ${absoluteY})`)
+//         console.log(`📍 节点 ${node.id}: 相对坐标 (${node.position.x}, ${node.position.y}) → 绝对坐标 (${absoluteX}, ${absoluteY})`)
         
-        return {
-          ...node,
-          parentNode: undefined,  // 移除父节点
-          extent: undefined,  // 移除限制
-          position: { x: absoluteX, y: absoluteY },  // 恢复绝对坐标
-        }
-      }
-      return node
-    })
-    .filter((node: any) => node.id !== groupId) // 移除分组节点
+//         return {
+//           ...node,
+//           parentNode: undefined,  // 移除父节点
+//           extent: undefined,  // 移除限制
+//           position: { x: absoluteX, y: absoluteY },  // 恢复绝对坐标
+//         }
+//       }
+//       return node
+//     })
+//     .filter((node: any) => node.id !== groupId) // 移除分组节点
 
-  nodes.value = updatedNodes
+//   nodes.value = updatedNodes
 
-  // 更新历史记录
-  const nodesData = Array.isArray(getNodes.value) ? getNodes.value : [...getNodes.value]
-  const edgesData = Array.isArray(getEdges.value) ? getEdges.value : [...getEdges.value]
-  // @ts-ignore
-  pushHistory({ nodes: nodesData, edges: edgesData })
+//   // 更新历史记录
+//   const nodesData = Array.isArray(getNodes.value) ? getNodes.value : [...getNodes.value]
+//   const edgesData = Array.isArray(getEdges.value) ? getEdges.value : [...getEdges.value]
+//   // @ts-ignore
+//   pushHistory({ nodes: nodesData, edges: edgesData })
 
-  console.log('✅ 解散分组成功')
-}
+//   console.log('✅ 解散分组成功')
+// }
 
-// GroupNode 相关函数已移除，现在通过浮动菜单操作
-
-// 视图更新已合并到上面的 onMounted 中
 </script>
 
 <style scoped>

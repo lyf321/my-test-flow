@@ -9,15 +9,15 @@
           </div>
           <div class="selector-list">
             <div
-              v-for="nodeType in availableNodeTypes"
-              :key="nodeType.id"
+              v-for="nodeType in safeNodeTypes"
+              :key="nodeType?.id || nodeType?.type || Math.random()"
               class="selector-item"
               @click="selectNode(nodeType)"
             >
-              <span class="icon">{{ nodeType.icon || '○' }}</span>
-              <span class="label">{{ nodeType.label }}</span>
+              <span class="icon">{{ nodeType?.icon || '○' }}</span>
+              <span class="label">{{ nodeType?.label || '未知节点' }}</span>
             </div>
-            <div v-if="availableNodeTypes.length === 0" class="empty-state">
+            <div v-if="safeNodeTypes.length === 0" class="empty-state">
               <span>暂无可添加的节点</span>
             </div>
           </div>
@@ -48,9 +48,16 @@ const positionStyle = computed(() => ({
   top: `${props.y}px`,
 }))
 
-const availableNodeTypes = computed(() => props.availableNodeTypes)
+// 安全地处理节点类型数组，过滤掉 undefined 或 null
+const safeNodeTypes = computed(() => {
+  if (!props.availableNodeTypes || !Array.isArray(props.availableNodeTypes)) {
+    return []
+  }
+  return props.availableNodeTypes.filter(nodeType => nodeType && (nodeType.id || nodeType.type))
+})
 
 const selectNode = (nodeType: NodeType) => {
+  if (!nodeType) return
   emit('select', nodeType)
   hide()
 }
